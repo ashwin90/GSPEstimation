@@ -101,12 +101,8 @@ class MIPMarketExplorer(MarketExplorer):
         return choice_index, optimum, new_ranked_list
 
     def explore_for(self, estimator, model, transactions):
-        # pool = mp.Pool(5)
         choice_indices_to_search_over = range(1, 1 + self.max_choice_index)
-        # results = pool.starmap_async(self.search_ranking_for_given_k, [(cidx, estimator.profiler(), model, transactions) for cidx in choice_indices_to_search_over]).get()
         results = Parallel(n_jobs=len(choice_indices_to_search_over))(delayed(self.search_ranking_for_given_k)(cidx, estimator.profiler(), model, transactions) for cidx in choice_indices_to_search_over)
-        # pool.close()
-        # pool.join()
         best_choice_index, best_opt, best_ranked_list = max(results, key=lambda w: w[1])
         obj_bound = 1
         if best_opt > obj_bound or np.abs(best_opt - obj_bound) < 1e-6:
@@ -121,7 +117,6 @@ class MIPMarketExplorer(MarketExplorer):
                 if rational_obj + self.max_irr_mass*(best_opt - rational_obj) > obj_bound:
                     types_found.append((rational_type, 1))
                 else:
-                    print('Did not find a new type!')
                     return NullMarketExplorer().explore_for(estimator, model, transactions)
 
             if model.variant == WITH_NO_CHOICE:
@@ -185,9 +180,6 @@ class MIPMarketExploreConstraints(object):
         if self.model.variant == WITH_NO_CHOICE:
             self.no_purchase_cannot_be_preferred_constraint(independent_terms, names, senses, linear_expressions)
             self.purchase_compatibility_constraints(independent_terms, names, senses, linear_expressions)
-        elif self.model.variant == 'gspx':
-            self.no_purchase_cannot_be_preferred_constraint(independent_terms, names, senses, linear_expressions)
-            self.purchase_compatibility_constraints_v2(independent_terms, names, senses, linear_expressions)
         else:
             self.purchase_compatibility_constraints_v3(independent_terms, names, senses, linear_expressions)
 
@@ -244,46 +236,6 @@ class MIPMarketExploreConstraints(object):
                     'product_%s_is_ranked_above_0_for_transaction_%s' % (chosen_prod, t))
                 senses.append('L')
                 linear_expressions.append([['w_%s' % t, 'x_%s_0' % chosen_prod], [1.0, -1.0]])
-
-    # THIS IS A WEIRD VARIANT THAT I TRIED, NOT VERY INTUITIVE SO IGNORE
-    def purchase_compatibility_constraints_v2(self, independent_terms, names, senses, linear_expressions):
-        # If I want a profile compatible with transaction t,
-        # then purchased product should be at 'choice_index' position
-        for t in range(self.model.num_transactions):
-            offered_products = tuple(self.model.offered_products[t].nonzero()[0])
-            num_offered = len(offered_products)
-            chosen_prod = self.model.chosen_products[t]
-            chosen_offered_pairs = ['x_%s_%s' % (chosen_prod, j) for j in set(offered_products) - {chosen_prod}]
-            if chosen_prod == 0:
-                for xij in chosen_offered_pairs:
-                    independent_terms.append(0.0)
-                    names.append('proudcts_%s_are_compatible_with_transaction_%s' % (xij, t))
-                    senses.append('L')
-                    linear_expressions.append([['w_%s' % t, xij], [1.0, -1.0]])
-            else:
-                independent_terms.append(0.0)
-                names.append(
-                    'product_%s_is_ranked_above_0_for_transaction_%s' % (chosen_prod, t))
-                senses.append('L')
-                linear_expressions.append([['w_%s' % t, 'x_%s_0' % chosen_prod], [1.0, -1.0]])
-                if num_offered < self.choice_index + 1:
-                    for j in set(offered_products) - {chosen_prod, 0}:
-                        independent_terms.append(0.0)
-                        names.append('product_%s_is_compatible_with_transaction_%s' % (j, t))
-                        senses.append('L')
-                        linear_expressions.append([['w_%s' % t, 'x_%s_%s' % (j, chosen_prod)], [1.0, -1.0]])
-                else:
-                    independent_terms.append(0.0)
-                    names.append(
-                        'product_%s_is_compatible_with_transaction_%s_G' % (chosen_prod, t))
-                    senses.append('G')
-                    linear_expressions.append([['w_%s' % t] + chosen_offered_pairs,
-                                               [self.choice_index - num_offered] + [1.0] * len(chosen_offered_pairs)])
-
-                    independent_terms.append(num_offered - 1)
-                    names.append('product_%s_is_compatible_with_transaction_%s_L' % (chosen_prod, t))
-                    senses.append('L')
-                    linear_expressions.append([['w_%s' % t] + chosen_offered_pairs, [self.choice_index - 1] + [1.0]*len(chosen_offered_pairs)])
 
     # THIS IS THE VARIANT WITH FULL RANKINGS WHERE 0 IS JUST ANOTHER PRODUCT
     def purchase_compatibility_constraints_v3(self, independent_terms, names, senses, linear_expressions):

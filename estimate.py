@@ -19,6 +19,7 @@ def predict_for_out_of_sample_transactions(gsp_model, transactions, num_prods):
         offered_products.append(os)
 
     test_pred_probs = gsp_model.predict_proba(np.array(offered_products), np.array(chosen_products))
+    print(f"Predicted probs for out-of-sample-transactions={test_pred_probs}")
 
 
 def estimate_GSP_model(file_name, maxk, irrat_prop_ub):
@@ -33,12 +34,11 @@ def estimate_GSP_model(file_name, maxk, irrat_prop_ub):
     gsp_market_explorer = GSPMarketExplorer(maxk, irrat_prop_ub)
     gsp_est = GSPExpectationMaximizationEstimator(gsp_market_explorer)
     gsp_model, gsp_runtime = gsp_est.estimate_with_market_discovery(gsp_model, None, file_name, ".", to_save=False)
-
     # predicted probs on out-of-sample transactions
     out_of_sample_transactions = Transaction.from_json(data['transactions']['out_of_sample'])
     predict_for_out_of_sample_transactions(gsp_model, out_of_sample_transactions, num_products)
 
 
-if __name__ == "_main__":
-    transaction_filename = ""
+if __name__ == "__main__":
+    transaction_filename = "instance_1.dt"
     estimate_GSP_model(transaction_filename, maxk=2, irrat_prop_ub=0.5)

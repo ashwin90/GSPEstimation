@@ -8,6 +8,7 @@ from utils import mprint
 cpx = cplex.Cplex()
 cpx.parameters.workmem.set(8192)  # 8 GB
 
+
 class LinearProblem(object):
     def amount_of_variables(self):
         raise NotImplementedError('Subclass responsibility')

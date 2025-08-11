@@ -17,6 +17,7 @@ class GeneralizedStochasticPreferenceModel(Model):
         chosen_products = []
         offered_products = []
         observed_sales = []
+        total_os_sales = defaultdict(int)
         num_prods = len(self.products)
         offer_set_dict = {}
         num_uniq_tx = 0
@@ -24,21 +25,26 @@ class GeneralizedStochasticPreferenceModel(Model):
             os = np.zeros(num_prods, dtype=np.int)
             os[tr.offered_products] = 1
             chosen_product = tr.product
+            product_sales = tr.sales
             tr_info = (chosen_product, tuple(os))
+            total_os_sales[tuple(os)] += product_sales
             if tr_info not in offer_set_dict:
                 offer_set_dict[tr_info] = num_uniq_tx
                 num_uniq_tx += 1
                 chosen_products.append(chosen_product)
-                observed_sales.append(tr.sales)
+                observed_sales.append(product_sales)
                 offered_products.append(os)
             else:
-                observed_sales[offer_set_dict[tr_info]] += tr.sales
+                observed_sales[offer_set_dict[tr_info]] += product_sales
 
         self.offered_products = np.array(offered_products)
         self.chosen_products = np.array(chosen_products)
         self.observed_sales = np.array(observed_sales)
         self.num_transactions = self.offered_products.shape[0]
         self.init_observed_choice_indicators()
+        self.empirical_choice_probs = np.zeros(self.num_transactions)
+        for os_id in range(self.num_transactions):
+            self.empirical_choice_probs[os_id] = self.observed_sales[os_id]/total_os_sales[tuple(self.offered_products[os_id])]
 
     def init_observed_choice_indicators(self):
         self.observed_choice_indicators = np.zeros((self.num_transactions, self.num_customer_types), dtype=np.int)

@@ -27,6 +27,6 @@ class GSPExpectationMaximizationEstimator(ExpectationMaximizationEstimator, GSPE
         model.betas = np.zeros_like(mi)
         model.betas[model.rational_type_indicators] = (1 - delta) * rational_betas
         model.betas[~model.rational_type_indicators] = delta*irrational_betas
-        assert np.round(np.abs(model.betas.sum() - 1), 7) == 0, 'Proportions not adding to 1'
+        assert np.round(np.abs(model.betas.sum() - 1), 7) == 0, 'GSP type proportions not adding to 1'
         return model
 

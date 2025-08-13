@@ -32,6 +32,7 @@ class GSPEstimator(Estimator):
         while add and int(self.profiler().duration()) < ESTIMATOR_TIME_LIMIT:
             new_types = self.market_explorer.explore_for(self, model, transactions)
             add, model = self.is_worth_adding(model, new_types, transactions, data_neg_entropy, gpt_exp)
+            model.simplify()
             # print(f'Current log-ll={model.log_likelihood_for(transactions):.4f}')
         runtime = int(self.profiler().duration())
         if to_save:

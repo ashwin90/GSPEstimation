@@ -40,5 +40,5 @@ def estimate_GSP_model(file_name, maxk, irrat_prop_ub):
 
 
 if __name__ == "__main__":
-    transaction_filename = "instance_1.dt"
+    transaction_filename = "instance_2.dt"
     estimate_GSP_model(transaction_filename, maxk=2, irrat_prop_ub=0.5)

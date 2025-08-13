@@ -44,12 +44,15 @@ class GeneralizedStochasticPreferenceModel(Model):
         self.init_observed_choice_indicators()
         self.empirical_choice_probs = np.zeros(self.num_transactions)
         for os_id in range(self.num_transactions):
-            self.empirical_choice_probs[os_id] = self.observed_sales[os_id]/total_os_sales[tuple(self.offered_products[os_id])]
+            self.empirical_choice_probs[os_id] = self.observed_sales[os_id] / total_os_sales[
+                tuple(self.offered_products[os_id])]
 
     def init_observed_choice_indicators(self):
         self.observed_choice_indicators = np.zeros((self.num_transactions, self.num_customer_types), dtype=np.int)
         for tidx, (ranking, cidx) in enumerate(self.customer_types):
-            self.observed_choice_indicators[:, tidx] = self.transactions_compatible_with(self.offered_products, self.chosen_products, ranking, cidx)
+            self.observed_choice_indicators[:, tidx] = self.transactions_compatible_with(self.offered_products,
+                                                                                         self.chosen_products, ranking,
+                                                                                         cidx)
 
     def init_from_parsed_data(self, offered_products, chosen_products, observed_sales, empirical_choice_probs):
         self.offered_products = offered_products
@@ -77,7 +80,7 @@ class GeneralizedStochasticPreferenceModel(Model):
                 ranked_lists.append(new_ranking)
 
         if not choice_indices:
-            choice_indices = [1]*len(ranked_lists)
+            choice_indices = [1] * len(ranked_lists)
 
         customer_types = []
         for rid, r in enumerate(ranked_lists):
@@ -101,10 +104,9 @@ class GeneralizedStochasticPreferenceModel(Model):
             raise Exception('Amount of betas (%s) should be equal to that of customer types (%s).' % info)
         self.betas = np.array(betas)
         self.customer_types = customer_types
-        self.ranked_list_to_choice_index_mapping = defaultdict(list)
+        self.customer_types_lookup = {(tuple(ranked_list), cid) for ranked_list, cid in self.customer_types}
         self.rational_type_indicators = []
         for r, cid in customer_types:
-            self.ranked_list_to_choice_index_mapping[tuple(r)].append(cid)
             self.rational_type_indicators.append(cid == 1)
         self.num_customer_types = len(self.customer_types)
         self.variant = variant
@@ -127,8 +129,18 @@ class GeneralizedStochasticPreferenceModel(Model):
         probs = np.zeros(membership.shape[0])
         for tid, gsp_type in enumerate(self.customer_types):
             # gsp_type[0] is the ranked list, gsp_type[1] is the choice_index
-            probs += self.betas[tid]*self.transactions_compatible_with(membership, chosen_products, gsp_type[0], gsp_type[1])
+            probs += self.betas[tid] * self.transactions_compatible_with(membership, chosen_products, gsp_type[0],
+                                                                         gsp_type[1])
         return probs
+
+    def simplify(self):
+        relevant_types = np.where(self.betas > 1e-15)[0]
+        self.betas = self.betas[relevant_types]
+        self.customer_types = [self.customer_types[tid] for tid in relevant_types]
+        self.rational_type_indicators = self.rational_type_indicators[relevant_types]
+        self.num_customer_types = len(self.customer_types)
+        self.observed_choice_indicators = self.observed_choice_indicators[:, relevant_types]
+        self.customer_types_lookup = {(tuple(ranked_list), cid) for ranked_list, cid in self.customer_types}
 
     def log_likelihood_for(self, transactions):
         return np.dot(self.observed_sales, np.ma.log(self.predict_insample_proba()).filled(0.))
@@ -143,24 +155,29 @@ class GeneralizedStochasticPreferenceModel(Model):
             return consid_set[cid] if cid < len(consid_set) else consid_set[-1]
 
     def transactions_compatible_with(self, membership, chosen_products, ranked_list, choice_index):
-        return ranked_list[np.apply_along_axis(self.get_chosen_prod, 1, membership[:, ranked_list], k=choice_index, ranking=ranked_list)] == chosen_products
+        return ranked_list[np.apply_along_axis(self.get_chosen_prod, 1, membership[:, ranked_list], k=choice_index,
+                                               ranking=ranked_list)] == chosen_products
         # return ranked_list[np.argmax(self.offered_products[:, ranked_list], axis=1)] == self.chosen_products
 
     def products_chosen_by_type(self, membership, ranked_list, choice_index):
         return ranked_list[np.apply_along_axis(self.get_chosen_prod, 1, membership[:, ranked_list], k=choice_index)]
 
     def add_ranked_list_and_index(self, ranked_list, choice_index, max_irr_mass):
-        rl_key = tuple(ranked_list)
-        if rl_key in self.ranked_list_to_choice_index_mapping and choice_index in self.ranked_list_to_choice_index_mapping[rl_key]:
+        new_type = (tuple(ranked_list), choice_index)
+        if new_type in self.customer_types_lookup:
             return
 
         percentage = 1.0 / (self.num_customer_types + 1.0)
         new_beta = [percentage]
-        self.betas = np.concatenate(((1.0 - percentage)*self.betas, new_beta))
-        self.ranked_list_to_choice_index_mapping[rl_key].append(choice_index)
+        self.betas = np.concatenate(((1.0 - percentage) * self.betas, new_beta))
         self.customer_types.append((ranked_list, choice_index))
+        self.customer_types_lookup.add(new_type)
         self.num_customer_types += 1
-        self.observed_choice_indicators = np.hstack((self.observed_choice_indicators, self.transactions_compatible_with(self.offered_products, self.chosen_products, ranked_list, choice_index)[:, np.newaxis]))
+        self.observed_choice_indicators = np.hstack((self.observed_choice_indicators,
+                                                     self.transactions_compatible_with(self.offered_products,
+                                                                                       self.chosen_products,
+                                                                                       ranked_list, choice_index)[:,
+                                                     np.newaxis]))
         self.rational_type_indicators = np.append(self.rational_type_indicators, choice_index == 1)
         self.reduce_irrational_mass(max_irr_mass)
 
@@ -171,20 +188,23 @@ class GeneralizedStochasticPreferenceModel(Model):
             self.betas[self.rational_type_indicators] *= (1 - max_irr_mass) / (1 - irrational_sum)
 
     def print_stats(self, metric=NLL_METRIC):
-        final_types = np.where(self.betas > 1e-15)[0]
         num_irr_types = 0.
         irr_types_mass = 0.
-        for tid in final_types:
+        for tid in range(self.num_customer_types):
             if self.customer_types[tid][1] > 1:
                 num_irr_types += 1
                 irr_types_mass += self.betas[tid]
             mprint('GSP recovered type {0} with mass {1}'.format(self.customer_types[tid], self.betas[tid]))
 
-        mprint('GSP estimated {0} irrational types with mass {1:.3f} out of {2} total types'.format(num_irr_types, irr_types_mass, len(final_types)))
+        mprint('GSP estimated {0} irrational types with mass {1:.3f} out of {2} total types'.format(num_irr_types,
+                                                                                                    irr_types_mass,
+                                                                                                    self.num_customer_types))
         predicted_probs = self.predict_insample_proba()
         # print('Predicted Probs: {0}'.format(predicted_probs))
         if metric == NLL_METRIC:
-            final_kldiv = np.dot(self.observed_sales, np.ma.log(self.empirical_choice_probs).filled(0.) - np.ma.log(predicted_probs).filled(0.))/np.sum(self.observed_sales)
+            final_kldiv = np.dot(self.observed_sales,
+                                 np.ma.log(self.empirical_choice_probs).filled(0.) - np.ma.log(predicted_probs).filled(
+                                     0.)) / np.sum(self.observed_sales)
             print(f'GSP({len(self.betas)}) KL divergence = {final_kldiv}')
             return final_kldiv, irr_types_mass
         elif metric == L1_METRIC:
@@ -197,7 +217,6 @@ class GeneralizedStochasticPreferenceModel(Model):
             'code': self.code(),
             'products': self.products,
             'betas': self.betas,
-            'ranked_list_to_choice_index_mapping': self.ranked_list_to_choice_index_mapping,
             'num_customer_types': self.num_customer_types
         }
 
@@ -227,6 +246,7 @@ class GeneralizedStochasticPreferenceModelConstraints(Constraints):
     def constraints_evaluator(self):
         def evaluator(x):
             return array([sum(x)])
+
         return evaluator
 
     def constraints_jacobian_evaluator(self):
@@ -235,4 +255,5 @@ class GeneralizedStochasticPreferenceModelConstraints(Constraints):
                 return zeros(len(self.model.betas)), array(range(len(self.model.betas)))
             else:
                 return ones(len(self.model.betas))
+
         return jacobian_evaluator

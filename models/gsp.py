@@ -214,10 +214,11 @@ class GeneralizedStochasticPreferenceModel(Model):
 
     def data(self):
         return {
-            'code': self.code(),
-            'products': self.products,
-            'betas': self.betas,
-            'num_customer_types': self.num_customer_types
+            'Model type': self.code(),
+            'Number of types': self.num_customer_types,
+            'Number of standard types': np.sum(self.rational_type_indicators),
+            'Customer types': self.customer_types,
+            'Type proportions': self.betas
         }
 
 

@@ -34,6 +34,16 @@ WITHOUT_NO_CHOICE = 'wo_nc'
 GPT_VARIANT = 'gpt'
 
 
+def convert_aggregated_to_individual_choices(membership, aggregated_choices):
+    empirical_choice_probs = aggregated_choices / np.sum(aggregated_choices, 1)[:, np.newaxis]
+    empirical_choice_probs = empirical_choice_probs[empirical_choice_probs > 0]
+    prods_chosen = aggregated_choices.nonzero()[1]
+    n_C = aggregated_choices[aggregated_choices > 0]
+    n_obs_per_offerset = np.sum(aggregated_choices > 0, 1)
+    X_expanded = np.repeat(membership, n_obs_per_offerset, axis=0)
+    return empirical_choice_probs, X_expanded, n_C, prods_chosen
+
+
 def compute_probs_under_HaloMNL_model(membership, prod_utils, lambdas, new=False):
     pred_probs = np.zeros_like(membership, dtype=float)
     for k in range(len(lambdas)):
@@ -275,12 +285,3 @@ class Profiler(object):
             self.start_iteration()
             self.stop_iteration(self._iterations[-2].value())
 
-
-def convert_aggregated_to_individual_choices(membership, aggregated_choices):
-    empirical_choice_probs = aggregated_choices / np.sum(aggregated_choices, 1)[:, np.newaxis]
-    empirical_choice_probs = empirical_choice_probs[empirical_choice_probs > 0]
-    prods_chosen = aggregated_choices.nonzero()[1]
-    n_C = aggregated_choices[aggregated_choices > 0]
-    n_obs_per_offerset = np.sum(aggregated_choices > 0, 1)
-    X_expanded = np.repeat(membership, n_obs_per_offerset, axis=0)
-    return empirical_choice_probs, X_expanded, n_C, prods_chosen

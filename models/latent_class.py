@@ -1,12 +1,12 @@
 from functools import reduce
 
 from numpy import ones, array, zeros
-from src import utils
 
 from models import Model
 from models.multinomial_logit import MultinomialLogitModel
 from optimization.non_linear import Constraints
-from utils import generate_n_equal_numbers_that_sum_one, generate_n_random_numbers_that_sum_one, ZERO_LOWER_BOUND
+from utils import generate_n_equal_numbers_that_sum_one, generate_n_random_numbers_that_sum_one, ZERO_LOWER_BOUND, \
+    NLP_UPPER_BOUND_INF
 
 
 class LatentClassModel(Model):
@@ -99,7 +99,7 @@ class LatentClassModelConstraints(Constraints):
         return ones(len(self.model.parameters_vector())) * ZERO_LOWER_BOUND
 
     def upper_bounds_vector(self):
-        return ones(len(self.model.parameters_vector())) * utils.NLP_UPPER_BOUND_INF
+        return ones(len(self.model.parameters_vector())) * NLP_UPPER_BOUND_INF
 
     def amount_of_constraints(self):
         return 1
